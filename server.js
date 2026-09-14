@@ -194,6 +194,23 @@ const server = http.createServer(async (req, res) => {
 
     if (p === '/healthz') { res.writeHead(200); return res.end('ok'); }
 
+    // First-run check: one real YouTube extraction, plain verdict on whether this server's IP is accepted.
+    if (p === '/api/selftest') {
+      const t0 = Date.now();
+      frames.startJob('dQw4w9WgXcQ')
+        .then(job => sendJson(res, 200, {
+          ok: true, ipAccepted: true, elapsedMs: Date.now() - t0,
+          verdict: 'YOUTUBE ACCEPTS THIS SERVER IP - frames mode will work here.',
+          testVideo: 'dQw4w9WgXcQ', durationSeconds: job.duration
+        }))
+        .catch(e => sendJson(res, 200, {
+          ok: false, ipAccepted: false, elapsedMs: Date.now() - t0,
+          verdict: 'YOUTUBE REFUSES THIS SERVER IP - frames mode will NOT work here (embed mode still fine).',
+          error: String(e && e.message || e).slice(0, 300)
+        }));
+      return;
+    }
+
     if (p === '/api/search') {
       const q = (u.searchParams.get('q') || '').trim();
       if (!q) return sendJson(res, 400, { error: 'missing q' });

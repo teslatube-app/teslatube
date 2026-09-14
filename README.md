@@ -42,3 +42,30 @@ node server.js   # PORT env var supported
 - If search or playback breaks, YouTube changed something: check `yt-dlp -U`
   first, then test `/api/search?q=test` and `/api/frames/status` on the live
   service. Render dashboard -> Logs shows extraction errors verbatim.
+
+## Run on your own server (Docker)
+
+The whole app - frontend + frames engine + yt-dlp + ffmpeg - ships in one container.
+
+```bash
+git clone https://github.com/teslatube-app/teslatube.git
+cd teslatube
+docker compose up -d
+```
+
+Then open http://YOUR-SERVER-IP:3000 (in the Tesla browser: http://YOUR-SERVER-IP:3000).
+
+First-run check - does YouTube accept your server's IP for frames mode?
+
+```bash
+curl http://localhost:3000/api/selftest
+```
+
+`"ipAccepted": true` = frames mode (any length video) will work. `false` = YouTube refuses that IP; embed mode still works.
+
+Tunables (docker-compose.yml `environment:`):
+- `PORT` - container port (default 3000; change the left side of `ports:` for the host port)
+- `YTDLP_CLIENT` - yt-dlp player client (default `android`)
+- `FIRST_SEG_LEN` - first segment length in seconds (default 8, so playback starts in a few seconds; later segments are 30s)
+
+Update later: `git pull && docker compose up -d --build`

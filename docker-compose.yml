@@ -1,0 +1,11 @@
+services:
+  teslatube:
+    build: .
+    container_name: teslatube
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000            # host port is the left side above; change both if needed
+      YTDLP_CLIENT: android # yt-dlp extractor player client (android works from clean IPs)
+      FIRST_SEG_LEN: 8      # seconds; short first segment so playback starts fast
+    restart: unless-stopped
