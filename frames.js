@@ -46,7 +46,7 @@ async function startJob(videoId) {
   if (job) { job.lastTouch = Date.now(); return job; }
   const out = await sh('yt-dlp', [
     '--no-playlist', '--no-warnings',
-    '--extractor-args', 'youtube:player_client=android',
+    '--extractor-args', 'youtube:player_client=' + (process.env.YTDLP_CLIENT || 'android'),
     '-J', 'https://www.youtube.com/watch?v=' + videoId
   ], 90000);
   const j = JSON.parse(out);
