@@ -103,7 +103,7 @@
       document.getElementById('playerbox').innerHTML = '<div class="bufnote" id="bufnote">Starting frame engine...</div>';
       modebtn.textContent = 'Switch to embed mode';
       modenote.textContent = 'Frames mode: 360p frames + continuous audio, converted in 30-second segments as you watch. No length cap - plays videos of any length.';
-      startFramesPlayer(id, function (errMsg) { setEmbedMode('Frames mode unavailable here (' + errMsg + '). Using embed mode instead.'); });
+      startFramesPlayer(id, function (errMsg) { setEmbedMode('Frames engine offline right now (' + errMsg + '). Playing via YouTube embed instead - still no length cap.'); });
     }
 
     modebtn.addEventListener('click', function () {
@@ -123,13 +123,13 @@
     var timeEl = document.getElementById('time');
     var stopped = false;
 
-    getJson('/api/frames/status', function (err, st) {
-      if (stopped) return;
-      if (err || !st || !st.available) return onFail('frame engine not installed on this server');
+    var stRes = null, stDone = false;
+    getJson('/api/frames/status', function (err, st) { stRes = { err: err, st: st }; stDone = true; });
 
-      getJson('/api/frames/' + id + '/start', function (err2, job) {
-        if (stopped) return;
-        if (err2 || !job || !job.ok) return onFail(job && job.error ? job.error : 'could not start video');
+    getJson('/api/frames/' + id + '/start', function (err2, job) {
+      if (stopped) return;
+      if (stDone && stRes && (stRes.err || !stRes.st || !stRes.st.available)) return onFail('frame engine not installed on this server');
+      if (err2 || !job || !job.ok) return onFail(job && job.error ? job.error : 'could not start video');
 
         // build player DOM
         playerbox.innerHTML = '<img class="frameimg" id="fimg" alt="">' +
@@ -157,7 +157,7 @@
               if (stopped) return;
               if (e || !d) { s.error = 'network'; return done(); }
               if (d.error) { s.error = d.error; return done(); }
-              if (!d.ready) { setTimeout(poll, 1500); return; }
+              if (!d.ready) { setTimeout(poll, n === 0 ? 700 : 1500); return; }
               s.ready = true; s.count = d.count; s.base = d.base;
               for (var i = 0; i < d.count; i++) {
                 var im = new Image();
@@ -212,8 +212,10 @@
             seek.value = String(Math.round((t / job.duration) * 1000) || 0);
             timeEl.textContent = fmtTime(t) + ' / ' + fmtTime(job.duration);
           }
-          var segN = Math.floor(t / job.segLen);
+          var fl = job.firstLen || 0;
+          var segN = fl && t < fl ? 0 : (fl ? 1 + Math.floor((t - fl) / job.segLen) : Math.floor(t / job.segLen));
           if (segN >= job.segCount) segN = job.segCount - 1;
+          var segStartT = fl && segN > 0 ? fl + (segN - 1) * job.segLen : segN * job.segLen;
           var s = segs[segN];
           if (!s) {
             if (!audio.paused) { audio.pause(); showBuffering(); }
@@ -226,7 +228,7 @@
             return;
           }
           hideBuffering();
-          var idx = Math.floor((t - segN * job.segLen) * job.fps);
+          var idx = Math.floor((t - segStartT) * job.fps);
           if (idx >= s.count) idx = s.count - 1;
           if (idx < 0) idx = 0;
           var im = s.images[idx];
@@ -235,7 +237,8 @@
             curShown = idx;
           }
           // look ahead
-          if (t > (segN + 1) * job.segLen - 8 && segN + 1 < job.segCount) loadSeg(segN + 1, function () {});
+          var segEndT = fl && segN === 0 ? fl : segStartT + job.segLen;
+          if (t > segEndT - 8 && segN + 1 < job.segCount) loadSeg(segN + 1, function () {});
         }, 120);
 
         activePlayer = {
@@ -246,7 +249,6 @@
           }
         };
       });
-    });
   }
 
   /* ---------- routing ---------- */

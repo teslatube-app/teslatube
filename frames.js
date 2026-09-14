@@ -16,6 +16,7 @@ const { URL } = require('url');
 
 const FPS = 5;
 const SEG_LEN = 30;
+const FIRST_LEN = Math.max(4, Number(process.env.FIRST_SEG_LEN || 8)); // short first segment = frames appear within seconds
 const FRAMES_PER_SEG = FPS * SEG_LEN;
 const JPEG_Q = 6;
 const KEEP_BEHIND = 1;
@@ -38,17 +39,19 @@ function whichOk(cmd, args) {
 }
 async function engineStatus() {
   const [yd, ff] = await Promise.all([whichOk('yt-dlp', ['--version']), whichOk('ffmpeg', ['-version'])]);
-  return { available: yd && ff, ytDlp: yd, ffmpeg: ff, fps: FPS, segLen: SEG_LEN };
+  return { available: yd && ff, ytDlp: yd, ffmpeg: ff, fps: FPS, segLen: SEG_LEN, firstLen: FIRST_LEN, engineDownFor: engineDownFor() };
 }
 
 async function startJob(videoId) {
   let job = jobs.get(videoId);
   if (job) { job.lastTouch = Date.now(); return job; }
+  if (engineDownFor() > 0) throw new Error('frames engine offline (YouTube is refusing this server IP) - retry in ' + engineDownFor() + 's');
   const out = await sh('yt-dlp', [
     '--no-playlist', '--no-warnings',
+    '--extractor-retries', '1', '--retries', '2', '--socket-timeout', '15',
     '--extractor-args', 'youtube:player_client=' + (process.env.YTDLP_CLIENT || 'android'),
     '-J', 'https://www.youtube.com/watch?v=' + videoId
-  ], 90000);
+  ], 90000).catch(e => { noteEngineFailure(e && e.message || e); throw e; });
   const j = JSON.parse(out);
   const f = (j.formats || []).find(x => x.format_id === '18' && x.url);
   if (!f) throw new Error('no progressive 360p format (YouTube may be blocking this server IP)');
@@ -59,12 +62,25 @@ async function startJob(videoId) {
     id: videoId, title: j.title || '', duration: j.duration,
     url: f.url,
     fps: FPS, segLen: SEG_LEN, framesPerSeg: FRAMES_PER_SEG,
-    segCount: Math.ceil(j.duration / SEG_LEN),
+    firstLen: FIRST_LEN,
+    segCount: j.duration <= FIRST_LEN ? 1 : 1 + Math.ceil((j.duration - FIRST_LEN) / SEG_LEN),
     dir: dir, segs: {}, lastTouch: Date.now()
   };
   jobs.set(videoId, job);
+  setImmediate(() => { try { ensureSeg(job, 0, true); } catch (e) {} });
+  setImmediate(() => { try { ensureSeg(job, 1, true); } catch (e) {} });
   return job;
 }
+
+let engineDownUntil = 0;
+function engineDownFor() { return Math.max(0, Math.ceil((engineDownUntil - Date.now()) / 1000)); }
+function noteEngineFailure(err) {
+  if (/player response|403|Sign in|consent|bot|blocked/i.test(String(err))) {
+    engineDownUntil = Date.now() + Number(process.env.ENGINE_DOWN_TTL_MS || 300000);
+  }
+}
+function segStart(n) { return n === 0 ? 0 : FIRST_LEN + (n - 1) * SEG_LEN; }
+function segDur(n, duration) { return n === 0 ? Math.min(FIRST_LEN, duration) : SEG_LEN; }
 
 function ensureSeg(job, n, isPrefetch) {
   if (n < 0 || n >= job.segCount) throw new Error('segment out of range');
@@ -77,7 +93,7 @@ function ensureSeg(job, n, isPrefetch) {
     const p = spawn('ffmpeg', [
       '-hide_banner', '-loglevel', 'error',
       '-headers', 'User-Agent: ' + ANDROID_UA + '\r\n',
-      '-ss', String(n * SEG_LEN), '-t', String(SEG_LEN),
+      '-an', '-ss', String(segStart(n)), '-t', String(segDur(n, job.duration)),
       '-i', job.url,
       '-vf', 'fps=' + FPS,
       '-q:v', String(JPEG_Q),
@@ -149,7 +165,7 @@ async function handle(req, res, u, sendJson) {
       const job = await startJob(m[1]);
       sendJson(res, 200, {
         ok: true, id: job.id, title: job.title, duration: job.duration,
-        fps: job.fps, segLen: job.segLen, framesPerSeg: job.framesPerSeg, segCount: job.segCount
+        fps: job.fps, segLen: job.segLen, firstLen: job.firstLen, framesPerSeg: job.framesPerSeg, segCount: job.segCount
       });
     } catch (e) { sendJson(res, 200, { ok: false, error: String(e.message || e) }); }
     return true;
