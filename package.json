@@ -1,0 +1,8 @@
+{
+  "name": "teslatube",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal YouTube web app optimized for the Tesla MCU2 browser",
+  "engines": { "node": ">=18" },
+  "scripts": { "start": "node server.js" }
+}
