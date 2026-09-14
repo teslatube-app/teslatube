@@ -257,7 +257,7 @@ const server = http.createServer(async (req, res) => {
     if (full.indexOf(PUBLIC_DIR) !== 0) { res.writeHead(403); return res.end(); }
     if (!fs.existsSync(full) || fs.statSync(full).isDirectory()) full = path.join(PUBLIC_DIR, 'index.html');
     const ext = path.extname(full).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': (ext === '.html' || ext === '.js') ? 'no-store' : 'no-cache' });
     fs.createReadStream(full).pipe(res);
   } catch (e) {
     if (!res.headersSent) sendJson(res, 500, { error: String(e && e.message || e) });
