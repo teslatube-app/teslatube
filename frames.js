@@ -56,7 +56,14 @@ async function startJob(videoId, force) {
     '--extractor-retries', '1', '--retries', '2', '--socket-timeout', '15',
     '--extractor-args', 'youtube:player_client=' + (process.env.YTDLP_CLIENT || 'android'),
     '-J', 'https://www.youtube.com/watch?v=' + videoId
-  ], 90000).catch(e => { noteEngineFailure(e && e.message || e); throw e; });
+  ], 90000).catch(e => {
+    const raw = (e && e.message || String(e));
+    noteEngineFailure(raw);
+    if (/Failed to extract any player response|HTTP Error 403|Sign in to confirm/i.test(raw)) {
+      throw new Error('YouTube is refusing this server IP - the frames engine needs to run from a clean (non-datacenter) IP');
+    }
+    throw e;
+  });
   const j = JSON.parse(out);
   const f = (j.formats || []).find(x => x.format_id === '18' && x.url);
   if (!f) throw new Error('no progressive 360p format (YouTube may be blocking this server IP)');
