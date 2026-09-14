@@ -115,13 +115,13 @@
     var timeEl = document.getElementById('time');
     var stopped = false;
 
-    var stRes = null, stDone = false;
-    getJson('/api/frames/status', function (err, st) { stRes = { err: err, st: st }; stDone = true; });
-
     getJson('/api/frames/' + id + '/start' + (force ? '?force=1' : ''), function (err2, job) {
       if (stopped) return;
-      if (stDone && stRes && stRes.st && stRes.st.available === false) return onFail('frame engine not installed on this server');
-      if (err2 || !job || !job.ok) return onFail(job && job.error ? job.error : 'could not start video');
+      if (err2 || !job || !job.ok) {
+        var m = (job && job.error) || 'could not start video';
+        if (/ENOENT|not installed/i.test(m)) m = 'frame engine not installed on this server';
+        return onFail(m);
+      }
 
         // build player DOM
         playerbox.innerHTML = '<img class="frameimg" id="fimg" alt="">' +
