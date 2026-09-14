@@ -35,11 +35,16 @@ function sh(cmd, args, timeoutMs) {
   });
 }
 function whichOk(cmd, args) {
-  return sh(cmd, args, 10000).then(() => true).catch(() => false);
+  return sh(cmd, args, 30000).then(() => true).catch(() => false);
 }
+let installedCache = null; // binaries cannot appear at runtime; only cache positive probes (a negative may be a CPU-starved spawn timeout)
 async function engineStatus() {
-  const [yd, ff] = await Promise.all([whichOk('yt-dlp', ['--version']), whichOk('ffmpeg', ['-version'])]);
-  return { available: yd && ff, ytDlp: yd, ffmpeg: ff, fps: FPS, segLen: SEG_LEN, firstLen: FIRST_LEN, engineDownFor: engineDownFor() };
+  if (!installedCache) {
+    const [yd, ff] = await Promise.all([whichOk('yt-dlp', ['--version']), whichOk('ffmpeg', ['-version'])]);
+    if (yd && ff) installedCache = true;
+    else return { available: false, ytDlp: yd, ffmpeg: ff, fps: FPS, segLen: SEG_LEN, firstLen: FIRST_LEN, engineDownFor: engineDownFor() };
+  }
+  return { available: true, ytDlp: true, ffmpeg: true, fps: FPS, segLen: SEG_LEN, firstLen: FIRST_LEN, engineDownFor: engineDownFor() };
 }
 
 async function startJob(videoId, force) {
