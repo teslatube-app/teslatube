@@ -17,14 +17,15 @@ teslaplay.net caps videos at 20 minutes. TeslaTube has no length cap anywhere.
   preloads one segment ahead. Old segments are deleted (rolling window), jobs
   expire after 30 idle minutes. Audio = the same 360p mp4 proxied with HTTP
   range support, and the player syncs frames to the audio clock.
-- Player modes: **Frames** (default, his spec) and **Embed** (YouTube iframe
-  fallback - free, unlimited, 720p+ when the Tesla browser allows it).
+- Player mode: **Frames only** - David's spec is pictures, not a video embed.
+  There is no iframe mode; when the engine is unreachable the app says so and
+  offers a retry.
 
 ## Limits (free Render)
-- Source quality for frames/car mode is 360p (only muxed format YouTube gives
-  a datacenter IP without sign-in). Embed mode can do 720p+.
+- Source quality is 360p (only muxed format YouTube gives a datacenter IP
+  without sign-in).
 - ~0.27 GB per viewing-hour (frames ~0.18 + audio ~0.09) -> the 5 GB/month
-  free bandwidth sustains roughly 18 hours/month. Embed mode uses ~nothing.
+  free bandwidth sustains roughly 18 hours/month.
 - Free service sleeps after 15 idle minutes (~1 min cold start).
 - If YouTube starts blocking Render's IPs, run the same server on David's Mac
   (residential IP) and expose it with `cloudflared tunnel --url
@@ -61,7 +62,7 @@ First-run check - does YouTube accept your server's IP for frames mode?
 curl http://localhost:3000/api/selftest
 ```
 
-`"ipAccepted": true` = frames mode (any length video) will work. `false` = YouTube refuses that IP; embed mode still works.
+`"ipAccepted": true` = frames mode (any length video) will work. `false` = YouTube refuses that IP; playback will not work from this server.
 
 Tunables (docker-compose.yml `environment:`):
 - `PORT` - container port (default 3000; change the left side of `ports:` for the host port)

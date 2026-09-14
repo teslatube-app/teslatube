@@ -205,7 +205,7 @@ const server = http.createServer(async (req, res) => {
         }))
         .catch(e => sendJson(res, 200, {
           ok: false, ipAccepted: false, elapsedMs: Date.now() - t0,
-          verdict: 'YOUTUBE REFUSES THIS SERVER IP - frames mode will NOT work here (embed mode still fine).',
+          verdict: 'YOUTUBE REFUSES THIS SERVER IP - frames mode will NOT work here.',
           error: String(e && e.message || e).slice(0, 300)
         }));
       return;

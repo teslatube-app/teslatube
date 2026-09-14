@@ -42,10 +42,10 @@ async function engineStatus() {
   return { available: yd && ff, ytDlp: yd, ffmpeg: ff, fps: FPS, segLen: SEG_LEN, firstLen: FIRST_LEN, engineDownFor: engineDownFor() };
 }
 
-async function startJob(videoId) {
+async function startJob(videoId, force) {
   let job = jobs.get(videoId);
   if (job) { job.lastTouch = Date.now(); return job; }
-  if (engineDownFor() > 0) throw new Error('frames engine offline (YouTube is refusing this server IP) - retry in ' + engineDownFor() + 's');
+  if (!force && engineDownFor() > 0) throw new Error('frames engine offline (YouTube is refusing this server IP) - retry in ' + engineDownFor() + 's');
   const out = await sh('yt-dlp', [
     '--no-playlist', '--no-warnings',
     '--extractor-retries', '1', '--retries', '2', '--socket-timeout', '15',
@@ -162,7 +162,7 @@ async function handle(req, res, u, sendJson) {
   let m = p.match(/^\/api\/frames\/([A-Za-z0-9_-]{11})\/start$/);
   if (m) {
     try {
-      const job = await startJob(m[1]);
+      const job = await startJob(m[1], u.searchParams.get('force') === '1');
       sendJson(res, 200, {
         ok: true, id: job.id, title: job.title, duration: job.duration,
         fps: job.fps, segLen: job.segLen, firstLen: job.firstLen, framesPerSeg: job.framesPerSeg, segCount: job.segCount

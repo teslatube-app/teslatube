@@ -55,7 +55,7 @@
     });
   }
 
-  /* ---------- watch view: frames player (default) + embed fallback ---------- */
+  /* ---------- watch view: frames only - pictures, not video. No embed fallback. ---------- */
   var activePlayer = null; // cleanup handle when navigating away
 
   function renderWatch(id) {
@@ -72,7 +72,6 @@
       '</div>' +
       '<div class="watchtitle" id="wtitle">Loading...</div>' +
       '<div class="watchchannel" id="wchannel"></div>' +
-      '<button class="modetoggle" id="modebtn" type="button">Switch to embed mode</button>' +
       '<div class="modenote" id="modenote"></div>' +
       '</div>';
 
@@ -82,40 +81,33 @@
       document.getElementById('wchannel').textContent = info.channel || '';
     });
 
-    var mode = 'frames';
-    var modebtn = document.getElementById('modebtn');
     var modenote = document.getElementById('modenote');
 
-    function setEmbedMode(note) {
-      mode = 'embed';
+    function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+    function showOffline(errMsg) {
       if (activePlayer && activePlayer.stop) activePlayer.stop();
       activePlayer = null;
       document.getElementById('controls').style.display = 'none';
       document.getElementById('playerbox').innerHTML =
-        '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(id) +
-        '?autoplay=1&rel=0&modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
-      modebtn.textContent = 'Switch to frames mode';
-      modenote.textContent = note || 'Embed mode: plays directly from YouTube. No length cap.';
+        '<div class="bufnote">Frames engine offline right now.<br>' +
+        '<span style="font-size:13px;opacity:.7">' + esc(errMsg) + '</span><br>' +
+        '<button class="modetoggle" id="retrybtn" type="button">Try again</button></div>';
+      modenote.textContent = 'TeslaTube plays pictures, not video embeds - the engine has to be reachable for playback.';
+      document.getElementById('retrybtn').addEventListener('click', function () { startFrames(true); });
     }
 
-    function setFramesMode() {
-      mode = 'frames';
+    function startFrames(force) {
       document.getElementById('playerbox').innerHTML = '<div class="bufnote" id="bufnote">Starting frame engine...</div>';
-      modebtn.textContent = 'Switch to embed mode';
-      modenote.textContent = 'Frames mode: 360p frames + continuous audio, converted in 30-second segments as you watch. No length cap - plays videos of any length.';
-      startFramesPlayer(id, function (errMsg) { setEmbedMode('Frames engine offline right now (' + errMsg + '). Playing via YouTube embed instead - still no length cap.'); });
+      modenote.textContent = 'Frames mode: 360p frames + continuous audio, converted in short segments as you watch. No length cap - plays videos of any length.';
+      startFramesPlayer(id, function (errMsg) { showOffline(errMsg); }, force);
     }
 
-    modebtn.addEventListener('click', function () {
-      if (mode === 'frames') setEmbedMode();
-      else setFramesMode();
-    });
-
-    setFramesMode();
+    startFrames(false);
   }
 
   /* ---------- the frames player ---------- */
-  function startFramesPlayer(id, onFail) {
+  function startFramesPlayer(id, onFail, force) {
     var playerbox = document.getElementById('playerbox');
     var controls = document.getElementById('controls');
     var playbtn = document.getElementById('playbtn');
@@ -126,7 +118,7 @@
     var stRes = null, stDone = false;
     getJson('/api/frames/status', function (err, st) { stRes = { err: err, st: st }; stDone = true; });
 
-    getJson('/api/frames/' + id + '/start', function (err2, job) {
+    getJson('/api/frames/' + id + '/start' + (force ? '?force=1' : ''), function (err2, job) {
       if (stopped) return;
       if (stDone && stRes && (stRes.err || !stRes.st || !stRes.st.available)) return onFail('frame engine not installed on this server');
       if (err2 || !job || !job.ok) return onFail(job && job.error ? job.error : 'could not start video');
