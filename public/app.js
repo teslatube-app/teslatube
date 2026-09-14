@@ -91,7 +91,7 @@
       document.getElementById('controls').style.display = 'none';
       document.getElementById('playerbox').innerHTML =
         '<div class="bufnote">Frames engine offline right now.<br>' +
-        '<span style="font-size:13px;opacity:.7">' + esc(errMsg) + '</span><br>' +
+        '<span style="font-size:13px;opacity:.7">(' + esc(errMsg) + ')</span><br><br>' +
         '<button class="modetoggle" id="retrybtn" type="button">Try again</button></div>';
       modenote.textContent = 'TeslaTube plays pictures, not video embeds - the engine has to be reachable for playback.';
       document.getElementById('retrybtn').addEventListener('click', function () { startFrames(true); });
@@ -120,7 +120,7 @@
 
     getJson('/api/frames/' + id + '/start' + (force ? '?force=1' : ''), function (err2, job) {
       if (stopped) return;
-      if (stDone && stRes && (stRes.err || !stRes.st || !stRes.st.available)) return onFail('frame engine not installed on this server');
+      if (stDone && stRes && stRes.st && stRes.st.available === false) return onFail('frame engine not installed on this server');
       if (err2 || !job || !job.ok) return onFail(job && job.error ? job.error : 'could not start video');
 
         // build player DOM
