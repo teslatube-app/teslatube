@@ -51,16 +51,25 @@ async function startJob(videoId, force) {
   let job = jobs.get(videoId);
   if (job) { job.lastTouch = Date.now(); return job; }
   if (!force && engineDownFor() > 0) throw new Error('frames engine offline (YouTube is refusing this server IP) - retry in ' + engineDownFor() + 's');
-  const out = await sh('yt-dlp', [
+  const client = process.env.YTDLP_CLIENT || 'mweb';
+  const extractorArgs = [
+    'youtube:player_client=' + client,
+    'youtubepot-bgutilhttp:base_url=' + (process.env.YTDLP_POT_PROVIDER_URL || 'http://127.0.0.1:4416')
+  ].join(';');
+  const args = [
     '--no-playlist', '--no-warnings',
     '--extractor-retries', '1', '--retries', '2', '--socket-timeout', '15',
-    '--extractor-args', 'youtube:player_client=' + (process.env.YTDLP_CLIENT || 'android'),
-    '-J', 'https://www.youtube.com/watch?v=' + videoId
-  ], 90000).catch(e => {
+    '--remote-components', 'ejs:github',
+    '--extractor-args', extractorArgs
+  ];
+  if (process.env.YTDLP_COOKIES) args.push('--cookies', process.env.YTDLP_COOKIES);
+  if (process.env.YTDLP_PROXY) args.push('--proxy', process.env.YTDLP_PROXY);
+  args.push('-J', 'https://www.youtube.com/watch?v=' + videoId);
+  const out = await sh('yt-dlp', args, 90000).catch(e => {
     const raw = (e && e.message || String(e));
     noteEngineFailure(raw);
     if (/Failed to extract any player response|HTTP Error 403|Sign in to confirm/i.test(raw)) {
-      throw new Error('YouTube is refusing this server IP - the frames engine needs to run from a clean (non-datacenter) IP');
+      throw new Error('YouTube refused this IP even with PO-token attestation - use YTDLP_PROXY or run the engine on a residential connection');
     }
     throw e;
   });
