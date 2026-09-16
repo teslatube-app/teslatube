@@ -11,8 +11,7 @@ teslaplay.net caps videos at 20 minutes. TeslaTube has no length cap anywhere.
   scrape (`/api/search`, no API key), oEmbed info (`/api/info`), Car-mode
   proxy (`/api/stream`).
 - `frames.js` - the frame engine (David's spec): resolves each video once with
-  yt-dlp (`youtube:player_client=android` - the only client whose stream URLs
-  are fetchable from a datacenter IP in 2026), then ffmpeg pulls 30-second
+  yt-dlp (`mweb` plus an automatic per-video Proof-of-Origin token), then ffmpeg pulls 30-second
   frame segments on demand (5 fps JPEG, 640x360, ~10KB/frame) while the player
   preloads one segment ahead. Old segments are deleted (rolling window), jobs
   expire after 30 idle minutes. Audio = the same 360p mp4 proxied with HTTP
@@ -22,8 +21,7 @@ teslaplay.net caps videos at 20 minutes. TeslaTube has no length cap anywhere.
   offers a retry.
 
 ## Limits (free Render)
-- Source quality is 360p (only muxed format YouTube gives a datacenter IP
-  without sign-in).
+- Source quality is 360p so frame generation starts quickly and stays usable on MCU2.
 - ~0.27 GB per viewing-hour (frames ~0.18 + audio ~0.09) -> the 5 GB/month
   free bandwidth sustains roughly 18 hours/month.
 - Free service sleeps after 15 idle minutes (~1 min cold start).
@@ -66,7 +64,29 @@ curl http://localhost:3000/api/selftest
 
 Tunables (docker-compose.yml `environment:`):
 - `PORT` - container port (default 3000; change the left side of `ports:` for the host port)
-- `YTDLP_CLIENT` - yt-dlp player client (default `android`)
+- `YTDLP_CLIENT` - yt-dlp player client (default `mweb`; paired with the PO-token provider)
+- `YTDLP_POT_PROVIDER_URL` - internal token service URL (default `http://pot-provider:4416`)
+- `YTDLP_COOKIES` - optional path to a Netscape cookies file mounted inside the container
+- `YTDLP_PROXY` - optional HTTP/SOCKS proxy for yt-dlp if the IP remains hard-blocked
 - `FIRST_SEG_LEN` - first segment length in seconds (default 8, so playback starts in a few seconds; later segments are 30s)
 
 Update later: `git pull && docker compose up -d --build`
+
+
+### YouTube bot-check workaround
+
+The compose stack includes `bgutil-ytdlp-pot-provider`. It generates the video-bound
+Proof-of-Origin token now required by YouTube and the app asks yt-dlp to use the
+`mweb` client with that token. No YouTube password or account cookies are required
+for normal public videos. After pulling this update, rebuild both services:
+
+```bash
+git pull
+docker compose pull
+docker compose up -d --build --force-recreate
+curl http://localhost:3000/api/selftest
+```
+
+If a server IP is still fully denied after PO-token setup, use a residential IP
+(the Mac installer in this repo) or set `YTDLP_PROXY` to a residential proxy.
+Cookies can help with account/age-gated videos, but should not be committed to git.
