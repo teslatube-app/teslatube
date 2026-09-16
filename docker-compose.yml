@@ -5,7 +5,18 @@ services:
     ports:
       - "3000:3000"
     environment:
-      PORT: 3000            # host port is the left side above; change both if needed
-      YTDLP_CLIENT: android # yt-dlp extractor player client (android works from clean IPs)
-      FIRST_SEG_LEN: 8      # seconds; short first segment so playback starts fast
+      PORT: 3000
+      # mweb + an automatic Proof-of-Origin token handles YouTube bot checks.
+      YTDLP_CLIENT: mweb
+      YTDLP_POT_PROVIDER_URL: http://pot-provider:4416
+      FIRST_SEG_LEN: 8
+    depends_on:
+      - pot-provider
+    restart: unless-stopped
+
+  # Generates a fresh video-bound YouTube PO token for every yt-dlp request.
+  pot-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:1.3.2
+    container_name: teslatube-pot-provider
+    init: true
     restart: unless-stopped
